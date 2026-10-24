@@ -9,7 +9,7 @@ import {
 import { requirePermission } from "@/lib/auth/context";
 import { formatDateTime } from "@/lib/format";
 import { Card, PageHeader } from "@/components/ui/card";
-import { SettingsForm } from "@/components/settings/settings-form";
+import { SettingsForm } from "@/features/settings/components/settings-form";
 
 export const metadata: Metadata = {
   title: "Configuración",

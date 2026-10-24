@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requirePermission } from "@/lib/auth/context";
 import { PageHeader } from "@/components/ui/card";
-import { ProductForm } from "@/components/catalog/product-form";
-import type { CategoryRow, ProductWithStock } from "@/types/database";
+import { ProductForm } from "@/features/catalog/components/product-form";
+import { getProduct, listCategories } from "@/features/catalog/queries";
 
 export const metadata: Metadata = {
   title: "Editar producto",
@@ -21,14 +21,12 @@ export default async function EditProductPage({
   const { id } = await params;
   const auth = await requirePermission("catalog.manage");
 
-  const [productResult, categoriesResult] = await Promise.all([
-    auth.supabase.from("products_with_stock").select("*").eq("id", id).maybeSingle(),
-    auth.supabase.from("categories").select("*").order("name"),
+  const [product, categories] = await Promise.all([
+    getProduct(auth, id),
+    listCategories(auth),
   ]);
 
-  if (!productResult.data) notFound();
-
-  const product = productResult.data as ProductWithStock;
+  if (!product) notFound();
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -46,10 +44,7 @@ export default async function EditProductPage({
         description="Los cambios de precio aplican a las próximas ventas. El stock no se modifica desde este formulario."
       />
 
-      <ProductForm
-        categories={(categoriesResult.data ?? []) as CategoryRow[]}
-        product={product}
-      />
+      <ProductForm categories={categories} product={product} />
     </div>
   );
 }

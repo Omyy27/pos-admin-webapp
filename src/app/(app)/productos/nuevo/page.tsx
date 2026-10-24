@@ -3,8 +3,8 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { requirePermission } from "@/lib/auth/context";
 import { PageHeader } from "@/components/ui/card";
-import { ProductForm } from "@/components/catalog/product-form";
-import type { CategoryRow } from "@/types/database";
+import { ProductForm } from "@/features/catalog/components/product-form";
+import { listCategories } from "@/features/catalog/queries";
 
 export const metadata: Metadata = {
   title: "Nuevo producto",
@@ -14,11 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewProductPage() {
   const auth = await requirePermission("catalog.manage");
-
-  const { data: categories } = await auth.supabase
-    .from("categories")
-    .select("*")
-    .order("name");
+  const categories = await listCategories(auth);
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -36,7 +32,7 @@ export default async function NewProductPage() {
         description="Las existencias se cargan después mediante entradas por lote. Aquí solo defines la identidad, el precio y las reglas de control."
       />
 
-      <ProductForm categories={(categories ?? []) as CategoryRow[]} />
+      <ProductForm categories={categories} />
     </div>
   );
 }

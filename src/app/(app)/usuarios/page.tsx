@@ -3,8 +3,8 @@ import { ShieldCheck, Users, UserRoundCheck, UserRoundX } from "lucide-react";
 import { requirePermission } from "@/lib/auth/context";
 import { formatDateShort } from "@/lib/format";
 import { Card, EmptyState, PageHeader } from "@/components/ui/card";
-import { CreateUserDialog } from "@/components/users/create-user-dialog";
-import { UserRow } from "@/components/users/user-row";
+import { CreateUserDialog } from "@/features/users/components/create-user-dialog";
+import { UserRow } from "@/features/users/components/user-row";
 import type { ProfileRow, RoleRow } from "@/types/database";
 
 export const metadata: Metadata = {

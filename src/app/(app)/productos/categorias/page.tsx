@@ -3,8 +3,8 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { requirePermission } from "@/lib/auth/context";
 import { PageHeader } from "@/components/ui/card";
-import { CategoryManager } from "@/components/catalog/category-manager";
-import type { CategoryRow } from "@/types/database";
+import { CategoryManager } from "@/features/catalog/components/category-manager";
+import { listCategories } from "@/features/catalog/queries";
 
 export const metadata: Metadata = {
   title: "Categorías",
@@ -14,11 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function CategoriesPage() {
   const auth = await requirePermission("catalog.read");
-
-  const { data: categories } = await auth.supabase
-    .from("categories")
-    .select("*")
-    .order("name");
+  const categories = await listCategories(auth);
 
   return (
     <div className="space-y-5">
@@ -37,7 +33,7 @@ export default async function CategoriesPage() {
       />
 
       <CategoryManager
-        categories={(categories ?? []) as CategoryRow[]}
+        categories={categories}
         canManage={auth.can("catalog.manage")}
       />
     </div>
