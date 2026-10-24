@@ -1,0 +1,5 @@
+# Configuración mínima para Supabase CLI.
+# Este proyecto usa Supabase Cloud y no requiere Docker para operar.
+# `project_id` identifica la carpeta de trabajo local; el proyecto real se
+# selecciona con `supabase link --project-ref ...`.
+project_id = "pos-drogueria"
