@@ -181,84 +181,85 @@ export async function getSalesHistory(
   return { sales, itemsBySale, sellerNames, totals };
 }
 
+type SaleItemLotUsage = {
+  sale_item_id: string;
+  lot_id: string;
+  quantity: number;
+  unit_cost: number;
+  product_lots: Pick<ProductLotRow, "lot_code" | "expires_on"> | null;
+};
+
+type SaleItemWithLots = SaleItemRow & {
+  sale_item_lots: SaleItemLotUsage[] | null;
+};
+
+type SaleWithItems = SaleRow & {
+  sale_items: SaleItemWithLots[] | null;
+};
+
 export async function getSaleDetail(
   auth: AuthContext,
   id: string,
 ): Promise<SaleDetail | null> {
+  const canSeeCosts = auth.can("sales.read_all") && auth.can("inventory.read");
+
+  // Venta, ítems y —solo si el usuario puede ver costos— lotes usados y sus
+  // datos, en un único viaje. Los tipos generados no declaran las relaciones
+  // embebidas; el cast refleja la forma que devuelve PostgREST.
   const { data: saleData } = await auth.supabase
     .from("sales")
-    .select("*")
+    .select(
+      canSeeCosts
+        ? "*, sale_items(*, sale_item_lots(sale_item_id, lot_id, quantity, unit_cost, product_lots(lot_code, expires_on)))"
+        : "*, sale_items(*)",
+    )
     .eq("id", id)
     .maybeSingle();
 
   if (!saleData) return null;
 
-  const sale = saleData as SaleRow;
+  const { sale_items: saleItems, ...sale } = saleData as unknown as SaleWithItems;
+  const items = (saleItems ?? []) as SaleItemWithLots[];
 
-  const { data: itemsData } = await auth.supabase
-    .from("sale_items")
-    .select("*")
-    .eq("sale_id", sale.id)
-    .order("created_at", { ascending: true });
-
-  const items = (itemsData ?? []) as SaleItemRow[];
-  const canSeeCosts = auth.can("sales.read_all") && auth.can("inventory.read");
-
-  const userIds = [sale.created_by, sale.voided_by].filter(
-    (value): value is string => Boolean(value),
-  );
-
-  const profilesPromise =
-    userIds.length > 0
-      ? auth.supabase.from("profiles").select("id, full_name").in("id", userIds)
-      : Promise.resolve({ data: [] as { id: string; full_name: string }[] });
+  items.sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   const lotsByItem = new Map<string, LotUsage[]>();
   let totalCost = 0;
 
-  if (canSeeCosts && items.length > 0) {
-    const { data: usageRows } = await auth.supabase
-      .from("sale_item_lots")
-      .select("*")
-      .in(
-        "sale_item_id",
-        items.map((item) => item.id),
-      );
-
-    const lotIds = [...new Set((usageRows ?? []).map((row) => row.lot_id))];
-
-    if (lotIds.length > 0) {
-      const { data: lotData } = await auth.supabase
-        .from("product_lots")
-        .select("id, lot_code, expires_on")
-        .in("id", lotIds);
-
-      const lotsById = new Map(
-        ((lotData ?? []) as Pick<
-          ProductLotRow,
-          "id" | "lot_code" | "expires_on"
-        >[]).map((lot) => [lot.id, lot]),
-      );
-
-      for (const row of usageRows ?? []) {
-        const lot = lotsById.get(row.lot_id);
-        const list = lotsByItem.get(row.sale_item_id) ?? [];
+  if (canSeeCosts) {
+    for (const item of items) {
+      for (const usage of item.sale_item_lots ?? []) {
+        const list = lotsByItem.get(item.id) ?? [];
         list.push({
-          lotId: row.lot_id,
-          lotCode: lot?.lot_code ?? "—",
-          expiresOn: lot?.expires_on ?? null,
-          quantity: row.quantity,
-          unitCost: Number(row.unit_cost),
+          lotId: usage.lot_id,
+          lotCode: usage.product_lots?.lot_code ?? "—",
+          expiresOn: usage.product_lots?.expires_on ?? null,
+          quantity: usage.quantity,
+          unitCost: Number(usage.unit_cost),
         });
-        lotsByItem.set(row.sale_item_id, list);
-        totalCost += row.quantity * Number(row.unit_cost);
+        lotsByItem.set(item.id, list);
+        totalCost += usage.quantity * Number(usage.unit_cost);
       }
     }
   }
 
-  const { data: profiles } = await profilesPromise;
+  // Segunda y última consulta: nombres de quien creó y anuló la venta.
+  const userIds = [sale.created_by, sale.voided_by].filter(
+    (value): value is string => Boolean(value),
+  );
+
+  let profileRows: { id: string; full_name: string }[] = [];
+
+  if (userIds.length > 0) {
+    const { data } = await auth.supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", userIds);
+    profileRows = data ?? [];
+  }
+
   const profileNames = new Map(
-    (profiles ?? []).map((profile) => [profile.id, profile.full_name]),
+    profileRows.map((profile) => [profile.id, profile.full_name]),
   );
 
   return {

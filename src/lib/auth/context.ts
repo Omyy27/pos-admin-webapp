@@ -1,6 +1,5 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import type {
@@ -12,9 +11,14 @@ import { CURRENCY_CODE, STORE_TIMEZONE } from "@/lib/constants";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
+export type AuthUser = {
+  id: string;
+  email: string | null;
+};
+
 export type AuthContext = {
   status: "authenticated";
-  user: User;
+  user: AuthUser;
   profile: ProfileRow;
   role: RoleRow;
   permissions: Set<string>;
@@ -28,11 +32,23 @@ export type AuthState =
   | { status: "anonymous" }
   | {
       status: "inactive";
-      user: User;
+      user: AuthUser;
       profile: ProfileRow | null;
       role: RoleRow | null;
     }
   | AuthContext;
+
+type PermissionLink = {
+  permissions: { id: number; code: string } | null;
+};
+
+type RoleWithPermissions = RoleRow & {
+  role_permissions: PermissionLink[];
+};
+
+type ProfileWithRole = ProfileRow & {
+  roles: RoleWithPermissions | null;
+};
 
 const fallbackSettings: SettingsRow = {
   id: 1,
@@ -54,66 +70,76 @@ export const getAuthState = cache(async (): Promise<AuthState> => {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) {
+  // getClaims verifica la firma del JWT localmente cuando el proyecto usa
+  // claves asimétricas (ES256/RS256). Solo consulta al servidor de Auth si el
+  // token está por expirar o si la firma no se puede validar localmente.
+  const { data: claimsData, error: claimsError } =
+    await supabase.auth.getClaims();
+  const claims = claimsData?.claims;
+
+  if (claimsError || !claims?.sub) {
     return { status: "anonymous" };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
+  const user: AuthUser = {
+    id: claims.sub,
+    email: typeof claims.email === "string" ? claims.email : null,
+  };
+
+  // Una sola consulta resuelve perfil, rol y permisos. settings se pide en
+  // paralelo para no encadenar una segunda ida y vuelta.
+  const [profileResult, settingsResult] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("*, roles(*, role_permissions(permissions(id, code)))")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
+  ]);
+
+  // Los tipos generados no declaran las relaciones embebidas; el cast refleja
+  // la forma que devuelve PostgREST para este select.
+  const profile = profileResult.data as unknown as ProfileWithRole | null;
+  const settings = settingsResult.data ?? fallbackSettings;
 
   if (!profile || !profile.active) {
-    let role: RoleRow | null = null;
-
-    if (profile?.role_id) {
-      const roleResult = await supabase
-        .from("roles")
-        .select("*")
-        .eq("id", profile.role_id)
-        .maybeSingle();
-      role = roleResult.data ?? null;
-    }
-
-    return { status: "inactive", user, profile, role };
+    return {
+      status: "inactive",
+      user,
+      profile,
+      role: profile?.roles ?? null,
+    };
   }
 
-  const [roleResult, linksResult, permissionsResult, settingsResult] =
-    await Promise.all([
-      supabase.from("roles").select("*").eq("id", profile.role_id).maybeSingle(),
-      supabase
-        .from("role_permissions")
-        .select("permission_id")
-        .eq("role_id", profile.role_id),
-      supabase.from("permissions").select("id, code"),
-      supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
-    ]);
-
-  if (roleResult.error || !roleResult.data) {
-    return { status: "inactive", user, profile, role: null };
+  if (!profile.roles) {
+    return {
+      status: "inactive",
+      user,
+      profile,
+      role: null,
+    };
   }
 
-  const permissionIds = new Set(
-    (linksResult.data ?? []).map((link) => link.permission_id),
-  );
   const permissions = new Set(
-    (permissionsResult.data ?? [])
-      .filter((permission) => permissionIds.has(permission.id))
-      .map((permission) => permission.code),
+    (profile.roles.role_permissions ?? [])
+      .map((link) => link.permissions?.code)
+      .filter((code): code is string => Boolean(code)),
   );
 
-  const settings = settingsResult.data ?? fallbackSettings;
+  const role: RoleRow = {
+    id: profile.roles.id,
+    code: profile.roles.code,
+    name: profile.roles.name,
+    description: profile.roles.description,
+    created_at: profile.roles.created_at,
+  };
 
   return {
     status: "authenticated",
     user,
     profile,
-    role: roleResult.data,
+    role,
     permissions,
     settings,
     supabase,

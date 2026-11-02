@@ -34,6 +34,19 @@ export type DashboardOverview = {
   expiredCount: number;
 };
 
+type TodaySaleItem = Pick<
+  SaleItemRow,
+  "sale_id" | "product_id" | "product_name" | "quantity"
+>;
+
+type SaleWithItems = SaleRow & {
+  sale_items: TodaySaleItem[] | null;
+};
+
+type DueLot = DashboardDueLot & {
+  products: { name: string } | null;
+};
+
 export async function getDashboardOverview(
   auth: AuthContext,
 ): Promise<DashboardOverview> {
@@ -45,57 +58,66 @@ export async function getDashboardOverview(
   const alertDate = addDaysToDateOnly(today, settings.expiry_alert_days);
   const { start, end } = getDayRange(new Date(), timeZone);
 
-  const [lowStockResult, productCountResult, lotsDueResult] = await Promise.all([
-    supabase
-      .from("products_with_stock")
-      .select("id, name, sku, available_quantity, min_stock, nearest_expiry")
-      .eq("active", true)
-      .eq("low_stock", true)
-      .order("available_quantity", { ascending: true })
-      .limit(6),
-    supabase
-      .from("products")
-      .select("id", { count: "exact", head: true })
-      .eq("active", true),
-    canSeeInventory
-      ? supabase
-          .from("product_lots")
-          .select("id, product_id, lot_code, expires_on, quantity")
-          .gt("quantity", 0)
-          .not("expires_on", "is", null)
-          .lte("expires_on", alertDate)
-          .order("expires_on", { ascending: true })
-          .limit(8)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  // Todas las consultas independientes salen en una sola tanda. Antes las
+  // ventas, sus ítems y los nombres de productos eran viajes secuenciales.
+  const salesPromise = canSeeSales
+    ? supabase
+        .from("sales")
+        .select("*, sale_items(sale_id, product_id, product_name, quantity)")
+        .gte("created_at", start)
+        .lte("created_at", end)
+        .order("created_at", { ascending: false })
+    : Promise.resolve({ data: [] as SaleWithItems[], error: null });
+
+  const [lowStockResult, productCountResult, lotsDueResult, salesResult] =
+    await Promise.all([
+      supabase
+        .from("products_with_stock")
+        .select("id, name, sku, available_quantity, min_stock, nearest_expiry")
+        .eq("active", true)
+        .eq("low_stock", true)
+        .order("available_quantity", { ascending: true })
+        .limit(6),
+      supabase
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("active", true),
+      canSeeInventory
+        ? supabase
+            .from("product_lots")
+            .select(
+              "id, product_id, lot_code, expires_on, quantity, products(name)",
+            )
+            .gt("quantity", 0)
+            .not("expires_on", "is", null)
+            .lte("expires_on", alertDate)
+            .order("expires_on", { ascending: true })
+            .limit(8)
+        : Promise.resolve({ data: [] as DueLot[], error: null }),
+      salesPromise,
+    ]);
 
   const lowStock = (lowStockResult.data ?? []) as DashboardLowStock[];
   const activeProducts = productCountResult.count ?? 0;
-  const lotsDue = (lotsDueResult.data ?? []) as DashboardDueLot[];
+  // Los tipos generados no declaran las relaciones embebidas; los casts
+  // reflejan la forma que devuelve PostgREST para estos selects.
+  const dueLotRows = (lotsDueResult.data ?? []) as unknown as DueLot[];
+  const lotsDue: DashboardDueLot[] = dueLotRows.map((lot) => ({
+    id: lot.id,
+    product_id: lot.product_id,
+    lot_code: lot.lot_code,
+    expires_on: lot.expires_on,
+    quantity: lot.quantity,
+  }));
 
-  let todaySales: SaleRow[] = [];
-  let todayItems: SaleItemRow[] = [];
+  const saleRows = (salesResult.data ?? []) as unknown as SaleWithItems[];
+  const todaySales: SaleRow[] = [];
+  const todayItems: TodaySaleItem[] = [];
 
-  if (canSeeSales) {
-    const { data: sales } = await supabase
-      .from("sales")
-      .select("*")
-      .gte("created_at", start)
-      .lte("created_at", end)
-      .order("created_at", { ascending: false });
-
-    todaySales = sales ?? [];
-
-    if (todaySales.length > 0) {
-      const { data: items } = await supabase
-        .from("sale_items")
-        .select("*")
-        .in(
-          "sale_id",
-          todaySales.map((sale) => sale.id),
-        );
-      todayItems = items ?? [];
-    }
+  for (const row of saleRows) {
+    const { sale_items: saleItems, ...sale } = row;
+    todaySales.push(sale);
+    if (saleItems) todayItems.push(...saleItems);
   }
 
   const completedSales = todaySales.filter((sale) => sale.status === "completed");
@@ -123,17 +145,11 @@ export async function getDashboardOverview(
     .sort((a, b) => b.quantity - a.quantity)
     .slice(0, 5);
 
-  const dueProductIds = [...new Set(lotsDue.map((lot) => lot.product_id))];
-  let dueProductNames = new Map<string, string>();
-
-  if (dueProductIds.length > 0) {
-    const { data: products } = await supabase
-      .from("products")
-      .select("id, name")
-      .in("id", dueProductIds);
-    dueProductNames = new Map(
-      (products ?? []).map((product) => [product.id, product.name]),
-    );
+  const dueProductNames = new Map<string, string>();
+  for (const lot of dueLotRows) {
+    if (lot.products?.name) {
+      dueProductNames.set(lot.product_id, lot.products.name);
+    }
   }
 
   const expiringCount = lotsDue.filter((lot) => {
