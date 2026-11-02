@@ -1,19 +1,19 @@
 export type SupabasePublicEnv = {
   url: string;
-  anonKey: string;
+  publishableKey: string;
 };
 
 export function getSupabasePublicEnv(): SupabasePublicEnv | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
 
-  if (!url || !anonKey) {
+  if (!url || !publishableKey) {
     return null;
   }
 
   return {
     url: url.replace(/\/$/, ""),
-    anonKey,
+    publishableKey,
   };
 }
 
@@ -22,7 +22,7 @@ export function requireSupabasePublicEnv(): SupabasePublicEnv {
 
   if (!env) {
     throw new Error(
-      "Falta configurar NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      "Falta configurar NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
     );
   }
 
@@ -33,16 +33,16 @@ export function isSupabaseConfigured(): boolean {
   return getSupabasePublicEnv() !== null;
 }
 
-export function isServiceRoleConfigured(): boolean {
-  return Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY?.trim());
+export function isSecretKeyConfigured(): boolean {
+  return Boolean(process.env.SUPABASE_SECRET_KEY?.trim());
 }
 
-export function requireServiceRoleKey(): string {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+export function requireSecretKey(): string {
+  const key = process.env.SUPABASE_SECRET_KEY?.trim();
 
   if (!key) {
     throw new Error(
-      "Falta configurar SUPABASE_SERVICE_ROLE_KEY para administrar usuarios.",
+      "Falta configurar SUPABASE_SECRET_KEY para administrar usuarios.",
     );
   }
 

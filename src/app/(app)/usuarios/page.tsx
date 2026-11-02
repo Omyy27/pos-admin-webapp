@@ -90,7 +90,7 @@ export default async function UsersPage() {
         <strong>Importante:</strong> los usuarios se crean sin registro público.
         Para operar esta pantalla, el servidor necesita la variable{" "}
         <code className="rounded bg-white/60 px-1 py-0.5 text-[10px]">
-          SUPABASE_SERVICE_ROLE_KEY
+          SUPABASE_SECRET_KEY
         </code>
         . Nunca la expongas en el navegador.
       </div>

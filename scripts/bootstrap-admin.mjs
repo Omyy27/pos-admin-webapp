@@ -7,10 +7,10 @@
  *
  * Requiere en .env.local:
  *   NEXT_PUBLIC_SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_SECRET_KEY
  *
- * La clave de servicio se usa solo en este script local. Nunca se envía al
- * navegador ni se incluye en el bundle de Next.js.
+ * La secret key se usa solo en este script local. Nunca se envía al navegador
+ * ni se incluye en el bundle de Next.js.
  */
 import { parseArgs } from "node:util";
 import { createClient } from "@supabase/supabase-js";
@@ -36,7 +36,7 @@ confirma el correo y lo promueve a administrador.
 }
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+const secretKey = process.env.SUPABASE_SECRET_KEY?.trim();
 const email = values.email?.trim().toLowerCase();
 const password = values.password;
 const fullName = values.name?.trim() || "Administrador";
@@ -46,9 +46,9 @@ function fail(message) {
   process.exit(1);
 }
 
-if (!url || !serviceRoleKey) {
+if (!url || !secretKey) {
   fail(
-    "Faltan NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY. Revisa .env.local.",
+    "Faltan NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SECRET_KEY. Revisa .env.local.",
   );
 }
 
@@ -57,7 +57,7 @@ if (password && password.length < 8) {
   fail("La contraseña debe tener al menos 8 caracteres.");
 }
 
-const admin = createClient(url, serviceRoleKey, {
+const admin = createClient(url, secretKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,

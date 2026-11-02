@@ -104,8 +104,8 @@ export default async function LoginPage() {
                 tu archivo <strong>.env.local</strong>.
               </p>
               <code className={styles.setupCode}>{`NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...`}</code>
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+SUPABASE_SECRET_KEY=...`}</code>
               <p className={styles.setupText}>
                 Después reinicia el servidor de desarrollo. Las instrucciones
                 completas están en el README del proyecto.

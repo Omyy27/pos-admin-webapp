@@ -13,7 +13,7 @@ export default async function proxy(request: NextRequest) {
 
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient<Database>(env.url, env.anonKey, {
+  const supabase = createServerClient<Database>(env.url, env.publishableKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();

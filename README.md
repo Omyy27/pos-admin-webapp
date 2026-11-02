@@ -39,13 +39,13 @@ aplica permisos por rol en la interfaz, el servidor y la base de datos.
 
 1. Entra a [supabase.com](https://supabase.com), crea un proyecto y guarda la
    contraseña de la base de datos.
-2. En **Project Settings → API** copia:
+2. En **Project Settings → API Keys** copia:
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon public` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` → `SUPABASE_SERVICE_ROLE_KEY`
+   - `Publishable key` → `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `Secret key` → `SUPABASE_SECRET_KEY`
 
-> La clave `service_role` omite RLS. Solo se usa en el servidor para crear
-> usuarios. Nunca la pongas en una variable `NEXT_PUBLIC_*` ni la compartas.
+> La `Secret key` omite RLS. Solo se usa en el servidor para crear usuarios.
+> Nunca la pongas en una variable `NEXT_PUBLIC_*` ni la compartas.
 
 ### 2. Configurar variables de entorno
 
@@ -57,8 +57,8 @@ Edita `.env.local`:
 
 ```dotenv
 NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-anon-key
-SUPABASE_SERVICE_ROLE_KEY=tu-service-role-key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+SUPABASE_SECRET_KEY=sb_secret_...
 ```
 
 Sin estas variables la app muestra una pantalla de configuración en `/login`;
@@ -190,7 +190,7 @@ src/
   components/           UI, catálogo, inventario, POS, ventas, usuarios…
   lib/
     auth/               Contexto de sesión, permisos y acciones de login
-    supabase/           Clientes server y service_role
+    supabase/           Clientes server y secret key
     format.ts           COP, fechas, zona horaria y periodos
     validation.ts       Esquemas Zod
   proxy.ts              Refresco de sesión y protección de rutas
@@ -205,7 +205,7 @@ scripts/                 Bootstrap del administrador y demo
   acceso a las tablas.
 - Las funciones de inventario y ventas son `security definer`, pero verifican
   `auth.uid()` y el permiso correspondiente antes de operar.
-- `service_role` solo se instancia en `src/lib/supabase/admin.ts` y en los
+- La `secret key` solo se instancia en `src/lib/supabase/admin.ts` y en los
   scripts locales.
 - No existe registro público. Un administrador crea las cuentas.
 - No se confía en precios ni totales enviados por el cliente.
@@ -216,15 +216,14 @@ scripts/                 Bootstrap del administrador y demo
 2. Configura las tres variables de entorno del proyecto.
 3. Aplica las migraciones al proyecto de Supabase de producción.
 4. Ejecuta el bootstrap del administrador contra ese proyecto.
-5. Verifica que `SUPABASE_SERVICE_ROLE_KEY` esté configurada solo como variable
-   de servidor.
+5. Verifica que `SUPABASE_SECRET_KEY` esté configurada solo como variable de
+   servidor.
 
 ## Solución de problemas
 
 - **`/login` muestra “Falta conectar Supabase”:** revisa `.env.local` y reinicia
   el servidor de desarrollo.
-- **No se pueden crear usuarios:** falta `SUPABASE_SERVICE_ROLE_KEY` en el
-  servidor.
+- **No se pueden crear usuarios:** falta `SUPABASE_SECRET_KEY` en el servidor.
 - **“Stock vigente insuficiente”:** el producto no tiene lotes vigentes
   suficientes; registra una entrada o revisa los vencimientos.
 - **No aparece ningún dato:** confirma que las migraciones se aplicaron y que el

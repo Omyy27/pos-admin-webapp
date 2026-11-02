@@ -6,7 +6,7 @@
  *   npm run db:seed-demo -- --email admin@tienda.com --password "ClaveSegura123"
  *
  * El script inicia sesión como administrador y usa las mismas RPC y reglas RLS
- * que la aplicación. No usa service_role, así que valida de paso los permisos
+ * que la aplicación. No usa la secret key, así que valida de paso los permisos
  * y las funciones FEFO.
  */
 import { parseArgs } from "node:util";
@@ -31,7 +31,7 @@ Se pueden usar DEMO_EMAIL y DEMO_PASSWORD del entorno.
 }
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
 const email = values.email ?? process.env.DEMO_EMAIL;
 const password = values.password ?? process.env.DEMO_PASSWORD;
 
@@ -40,9 +40,9 @@ function fail(message) {
   process.exit(1);
 }
 
-if (!url || !anonKey) {
+if (!url || !publishableKey) {
   fail(
-    "Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY. Revisa .env.local.",
+    "Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY. Revisa .env.local.",
   );
 }
 
@@ -52,7 +52,7 @@ if (!email || !password) {
   );
 }
 
-const supabase = createClient(url, anonKey, {
+const supabase = createClient(url, publishableKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,

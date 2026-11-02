@@ -3,9 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getActionAuth } from "@/lib/auth/context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  isServiceRoleConfigured,
-} from "@/lib/env";
+import { isSecretKeyConfigured } from "@/lib/env";
 import {
   actionError,
   actionOk,
@@ -22,9 +20,9 @@ export async function createUserAction(
   const { auth, error } = await getActionAuth("users.manage");
   if (!auth) return actionError(error ?? "No autorizado.");
 
-  if (!isServiceRoleConfigured()) {
+  if (!isSecretKeyConfigured()) {
     return actionError(
-      "Falta SUPABASE_SERVICE_ROLE_KEY en el servidor para crear usuarios.",
+      "Falta SUPABASE_SECRET_KEY en el servidor para crear usuarios.",
     );
   }
 
